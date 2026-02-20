@@ -3,18 +3,44 @@ from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
+import json
+import base64
 from datetime import datetime
 from functools import wraps
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize Firebase Admin with relative path
-cert_path = os.path.join(os.path.dirname(__file__), 'serviceAccountKey.json')
-if not firebase_admin._apps:
-    cred = credentials.Certificate(cert_path)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+# Initialize Firebase Admin
+def init_firebase():
+    if firebase_admin._apps:
+        return firestore.client()
+    
+    # Try to load from environment variable (base64 encoded)
+    service_account_base64 = os.environ.get('FIREBASE_SERVICE_ACCOUNT_BASE64')
+    
+    if service_account_base64:
+        # Decode base64 and parse JSON
+        service_account_json = base64.b64decode(service_account_base64).decode('utf-8')
+        service_account_dict = json.loads(service_account_json)
+        cred = credentials.Certificate(service_account_dict)
+        firebase_admin.initialize_app(cred)
+    else:
+        # Fallback to file (for local development)
+        cert_path = os.path.join(os.path.dirname(__file__), 'serviceAccountKey.json')
+        if os.path.exists(cert_path):
+            cred = credentials.Certificate(cert_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            raise ValueError("No Firebase credentials found. Set FIREBASE_SERVICE_ACCOUNT_BASE64 env variable or provide serviceAccountKey.json")
+    
+    return firestore.client()
+
+db = init_firebase()
 
 # Auth decorator
 def require_auth(f):

@@ -213,3 +213,35 @@ E0000 00:00:1771619525.082816   29339 init.cc:232] grpc_wait_for_shutdown_with_t
 127.0.0.1 - - [20/Feb/2026 22:25:31] "GET /api/orders HTTP/1.1" 401 -
 127.0.0.1 - - [20/Feb/2026 22:25:31] "GET /api/orders HTTP/1.1" 401 -
 127.0.0.1 - - [20/Feb/2026 22:25:31] "GET /api/orders HTTP/1.1" 401 -
+ * Detected change in '/home/oo33/AndroidStudioProjects/API_FRIZZLY/flask_app.py', reloading
+
+==================================================
+🍕 FRIZZLY API - Local Test Server
+==================================================
+
+📍 Server running at: http://localhost:8080
+
+📚 Available endpoints:
+   GET  http://localhost:8080/
+   GET  http://localhost:8080/api/health
+   GET  http://localhost:8080/api/products
+
+⚠️  Protected endpoints require Authorization header
+
+🛑 Press CTRL+C to stop
+
+ * Restarting with stat
+/home/oo33/.local/lib/python3.8/site-packages/google/auth/__init__.py:52: FutureWarning: You are using a Python version 3.8 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.8"), FutureWarning)
+/home/oo33/.local/lib/python3.8/site-packages/google/oauth2/__init__.py:38: FutureWarning: You are using a Python version 3.8 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.8"), FutureWarning)
+/home/oo33/.local/lib/python3.8/site-packages/google/api_core/_python_version_support.py:246: FutureWarning: You are using a non-supported Python version (3.8.10). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+Traceback (most recent call last):
+  File "/home/oo33/AndroidStudioProjects/API_FRIZZLY/run_local.py", line 6, in <module>
+    from flask_app import app
+  File "/home/oo33/AndroidStudioProjects/API_FRIZZLY/flask_app.py", line 39, in <module>
+    db = init_firebase()
+  File "/home/oo33/AndroidStudioProjects/API_FRIZZLY/flask_app.py", line 35, in init_firebase
+    raise ValueError("No Firebase credentials found. Set FIREBASE_SERVICE_ACCOUNT_BASE64 env variable or provide serviceAccountKey.json")
+ValueError: No Firebase credentials found. Set FIREBASE_SERVICE_ACCOUNT_BASE64 env variable or provide serviceAccountKey.json

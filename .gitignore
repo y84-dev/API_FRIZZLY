@@ -1,0 +1,7 @@
+serviceAccountKey.json
+*.base64.txt
+.env
+__pycache__/
+*.pyc
+*.log
+server.log
