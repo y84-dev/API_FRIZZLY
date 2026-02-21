@@ -453,10 +453,6 @@ def admin_update_order(order_id):
                     fcm_token = user_doc.to_dict().get('fcmToken')
                     if fcm_token:
                         message = messaging.Message(
-                            notification=messaging.Notification(
-                                title=title,
-                                body=body
-                            ),
                             data={
                                 'notification_type': 'order',
                                 'order_id': order_id,
@@ -465,12 +461,7 @@ def admin_update_order(order_id):
                                 'body': body
                             },
                             android=messaging.AndroidConfig(
-                                priority='high',
-                                notification=messaging.AndroidNotification(
-                                    sound='notification_beep',
-                                    channel_id='frizzly_orders_v7',
-                                    priority='high'
-                                )
+                                priority='high'
                             ),
                             token=fcm_token
                         )
