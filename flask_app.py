@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, messaging
 import os
 import json
 import base64
@@ -415,17 +415,74 @@ def admin_update_order(order_id):
         # Create notification if status changed
         if 'status' in data and user_id:
             new_status = data['status']
+            
+            # Status messages
+            status_messages = {
+                'PENDING': '⏳ Your order is pending confirmation.',
+                'CONFIRMED': '✅ Your order has been confirmed!',
+                'PREPARING_ORDER': '👨‍🍳 Your order is being prepared!',
+                'READY_FOR_PICKUP': '📦 Your order is ready for pickup!',
+                'ON_WAY': '🚚 Your order is on the way!',
+                'OUT_FOR_DELIVERY': '🚚 Your order is out for delivery!',
+                'DELIVERED': '✨ Your order has been delivered!',
+                'CANCELLED': '❌ Your order has been cancelled.',
+                'RETURNED': '↩️ Your order has been returned.'
+            }
+            
+            title = 'FRIZZLY Order Update'
+            body = status_messages.get(new_status, f'Order status: {new_status}')
+            
+            # Save to Firestore
             notification_data = {
                 'userId': user_id,
-                'title': f'Order {new_status.replace("_", " ").title()}',
-                'body': f'Your order #{order_data.get("orderId", order_id)[-8:]} is now {new_status.replace("_", " ").lower()}',
-                'type': 'order_update',
+                'title': title,
+                'body': body,
+                'type': 'order',
                 'orderId': order_id,
+                'status': new_status,
                 'timestamp': firestore.SERVER_TIMESTAMP,
                 'isRead': False
             }
             db.collection('notifications').add(notification_data)
-            print(f'✅ Notification created for user {user_id}: {new_status}')
+            print(f'✅ Notification saved to Firestore for user {user_id}')
+            
+            # Send FCM push notification
+            try:
+                user_doc = db.collection('users').document(user_id).get()
+                if user_doc.exists:
+                    fcm_token = user_doc.to_dict().get('fcmToken')
+                    if fcm_token:
+                        message = messaging.Message(
+                            notification=messaging.Notification(
+                                title=title,
+                                body=body
+                            ),
+                            data={
+                                'notification_type': 'order',
+                                'order_id': order_id,
+                                'status': new_status,
+                                'title': title,
+                                'body': body
+                            },
+                            android=messaging.AndroidConfig(
+                                priority='high',
+                                notification=messaging.AndroidNotification(
+                                    sound='notification_beep',
+                                    channel_id='frizzly_orders_v7',
+                                    priority='high'
+                                )
+                            ),
+                            token=fcm_token
+                        )
+                        response = messaging.send(message)
+                        print(f'✅ FCM notification sent to user {user_id}: {response}')
+                    else:
+                        print(f'⚠️ No FCM token for user {user_id}')
+                else:
+                    print(f'⚠️ User {user_id} not found in Firestore')
+            except Exception as fcm_error:
+                print(f'❌ FCM error: {fcm_error}')
+                # Don't fail the request if FCM fails
         
         return jsonify({'success': True}), 200
     except Exception as e:
