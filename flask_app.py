@@ -418,11 +418,30 @@ def admin_delete_order(order_id):
 @app.route('/api/admin/users', methods=['GET'])
 @require_admin
 def admin_get_all_users():
-    """Get all users (admin only)"""
+    """Get all users (admin only) - from Firebase Auth"""
     try:
-        users = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('users').stream()]
+        # Try Firestore first
+        firestore_users = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('users').stream()]
+        
+        if firestore_users:
+            return jsonify({'users': firestore_users}), 200
+        
+        # Fallback to Firebase Auth
+        page = auth.list_users()
+        users = []
+        for user in page.users:
+            users.append({
+                'id': user.uid,
+                'email': user.email,
+                'displayName': user.display_name or 'N/A',
+                'phoneNumber': user.phone_number or 'N/A',
+                'createdAt': user.user_metadata.creation_timestamp,
+                'lastSignIn': user.user_metadata.last_sign_in_timestamp
+            })
+        
         return jsonify({'users': users}), 200
     except Exception as e:
+        print(f"Error fetching users: {e}")
         return jsonify({'error': 'Failed to fetch users'}), 500
 
 @app.route('/api/admin/analytics', methods=['GET'])
