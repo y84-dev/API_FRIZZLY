@@ -676,5 +676,27 @@ def save_admin_fcm_token():
     except Exception as e:
         return jsonify({'error': 'Failed to save token'}), 500
 
+@app.route('/api/admin/dashboard-stats', methods=['GET'])
+@require_admin
+def admin_dashboard_stats():
+    """Get dashboard statistics (admin only)"""
+    try:
+        orders = list(db.collection('orders').stream())
+        total_orders = len(orders)
+        total_revenue = sum(doc.to_dict().get('totalAmount', 0) for doc in orders)
+        status_counts = {}
+        
+        for doc in orders:
+            status = doc.to_dict().get('status', 'UNKNOWN')
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+        return jsonify({
+            'totalOrders': total_orders,
+            'totalRevenue': total_revenue,
+            'statusCounts': status_counts
+        }), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch dashboard statistics'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
