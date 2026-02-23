@@ -920,7 +920,9 @@ def stream_orders():
     
     def on_snapshot(col_snapshot, changes, read_time):
         """Firestore snapshot callback"""
+        print(f"🔴 SSE: Snapshot received with {len(changes)} changes")
         for change in changes:
+            print(f"🔴 SSE: Change type: {change.type.name}")
             if change.type.name in ['ADDED', 'MODIFIED']:
                 doc = change.document
                 data = doc.to_dict()
@@ -932,15 +934,19 @@ def stream_orders():
                     'timestamp': data.get('timestamp', 0),
                     'type': 'new_order' if change.type.name == 'ADDED' else 'order_update'
                 }
+                print(f"🔴 SSE: Queuing event: {event_data['orderId']}")
                 message_queue.put(event_data)
     
-    # Start Firestore listener
-    col_query = db.collection('orders').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50)
+    # Start Firestore listener - REMOVED order_by to avoid index requirement
+    print("🔴 SSE: Starting Firestore listener...")
+    col_query = db.collection('orders').limit(50)
     doc_watch = col_query.on_snapshot(on_snapshot)
+    print("🔴 SSE: Listener started!")
     
     def generate():
         try:
             # Send connection message
+            print("🔴 SSE: Client connected")
             yield f"data: {json.dumps({'type': 'connected'})}\n\n"
             
             while True:
@@ -948,11 +954,16 @@ def stream_orders():
                     # Get message from queue (30s timeout)
                     event_data = message_queue.get(timeout=30)
                     event_type = event_data.pop('type', 'message')
+                    print(f"🔴 SSE: Sending event: {event_type}")
                     yield f"event: {event_type}\ndata: {json.dumps(event_data)}\n\n"
                 except queue.Empty:
                     # Send heartbeat
                     yield f": heartbeat\n\n"
         except GeneratorExit:
+            print("🔴 SSE: Client disconnected")
+            doc_watch.unsubscribe()
+        except Exception as e:
+            print(f"🔴 SSE: Error: {e}")
             doc_watch.unsubscribe()
     
     return Response(generate(), mimetype='text/event-stream')
