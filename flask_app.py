@@ -8,18 +8,12 @@ import base64
 from datetime import datetime
 from functools import wraps
 from dotenv import load_dotenv
-import threading
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-
-# SSE connection tracking
-sse_connections = []
-sse_lock = threading.Lock()
-MAX_SSE_CONNECTIONS = 5  # Limit concurrent SSE connections
 
 # Initialize Firebase Admin
 def init_firebase():
@@ -914,84 +908,10 @@ def delete_category(category_id):
 
 # ==================== SSE (Server-Sent Events) ====================
 
-@app.route('/api/admin/stream/orders')
-@require_admin
-def stream_orders():
-    """Real-time order updates via Server-Sent Events"""
-    from flask import Response
-    import queue
-    
-    # Check connection limit
-    with sse_lock:
-        if len(sse_connections) >= MAX_SSE_CONNECTIONS:
-            return make_error_response('Too many SSE connections', 429)
-    
-    message_queue = queue.Queue(maxsize=100)
-    connection_id = id(message_queue)
-    
-    def on_snapshot(col_snapshot, changes, read_time):
-        """Firestore snapshot callback"""
-        try:
-            for change in changes:
-                if change.type.name in ['ADDED', 'MODIFIED']:
-                    doc = change.document
-                    data = doc.to_dict()
-                    event_data = {
-                        'id': doc.id,
-                        'orderId': data.get('orderId', doc.id),
-                        'totalAmount': data.get('totalAmount', 0),
-                        'status': data.get('status', 'PENDING'),
-                        'timestamp': data.get('timestamp', 0),
-                        'type': 'new_order' if change.type.name == 'ADDED' else 'order_update'
-                    }
-                    try:
-                        message_queue.put_nowait(event_data)
-                    except queue.Full:
-                        pass
-        except:
-            pass
-    
-    # Start Firestore listener
-    col_query = db.collection('orders').limit(20)
-    doc_watch = col_query.on_snapshot(on_snapshot)
-    
-    # Track connection
-    with sse_lock:
-        sse_connections.append(connection_id)
-    
-    def generate():
-        try:
-            yield f"data: {json.dumps({'type': 'connected'})}\n\n"
-            
-            timeout_count = 0
-            max_timeouts = 6  # 3 minutes
-            
-            while timeout_count < max_timeouts:
-                try:
-                    event_data = message_queue.get(timeout=30)
-                    event_type = event_data.pop('type', 'message')
-                    yield f"event: {event_type}\ndata: {json.dumps(event_data)}\n\n"
-                    timeout_count = 0
-                except queue.Empty:
-                    yield f": heartbeat\n\n"
-                    timeout_count += 1
-                    
-        finally:
-            # Cleanup
-            doc_watch.unsubscribe()
-            with sse_lock:
-                if connection_id in sse_connections:
-                    sse_connections.remove(connection_id)
-    
-    response = Response(generate(), mimetype='text/event-stream')
-    response.headers['X-Accel-Buffering'] = 'no'
-    response.headers['Cache-Control'] = 'no-cache'
-    return response
-
 @app.route('/api/admin/orders/recent')
 @require_admin
 def get_recent_orders():
-    """Get recent orders for polling fallback"""
+    """Get recent orders for polling"""
     try:
         orders_ref = db.collection('orders').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).stream()
         orders = []
