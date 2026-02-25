@@ -7,10 +7,6 @@ import json
 import base64
 from datetime import datetime
 from functools import wraps
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -278,10 +274,9 @@ def submit_order():
                         token=fcm_token
                     )
                     messaging.send(message)
-                    print(f'✅ Admin notification sent for order {order_id}')
+                    # Notification sent
         except Exception as e:
-            print(f'⚠️ Failed to send admin notification: {e}')
-            # Don't fail the order if notification fails
+            pass # Notification failed - don't block order
 
         return jsonify({
             'success': True,
@@ -490,7 +485,8 @@ def health_check():
 def admin_get_all_orders():
     """Get all orders (admin only)"""
     try:
-        orders = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('orders').stream()]
+        limit = min(int(request.args.get('limit', 50)), 100)
+        orders = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('orders').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit).stream()]
         return jsonify({'orders': orders}), 200
     except Exception as e:
         return make_error_response('Failed to fetch orders', 500)
@@ -557,7 +553,6 @@ def admin_update_order(order_id):
                 'isRead': False
             }
             db.collection('notifications').add(notification_data)
-            print(f'✅ Notification saved to Firestore for user {user_id}')
             
             # Send FCM push notification
             try:
@@ -579,20 +574,16 @@ def admin_update_order(order_id):
                             token=fcm_token
                         )
                         response = messaging.send(message)
-                        print(f'✅ FCM notification sent to user {user_id}: {response}')
+                        # Logging disabled to save resources
                     else:
-                        print(f'⚠️ No FCM token for user {user_id}')
+                        pass # No FCM token
                 else:
-                    print(f'⚠️ User {user_id} not found in Firestore')
+                    pass # User not found
             except Exception as fcm_error:
-                print(f'❌ FCM error: {fcm_error}')
-                # Don't fail the request if FCM fails
+                pass # FCM error - don't fail request
         
         return jsonify({'success': True}), 200
     except Exception as e:
-        print(f'❌ Error updating order: {e}')
-        import traceback
-        traceback.print_exc()
         return make_error_response(str(e), 500)
 
 @app.route('/api/admin/orders/<order_id>', methods=['DELETE'])
@@ -610,8 +601,8 @@ def admin_delete_order(order_id):
 def admin_get_all_users():
     """Get all users (admin only) - from Firebase Auth"""
     try:
-        # Try Firestore first
-        firestore_users = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('users').stream()]
+        limit = min(int(request.args.get('limit', 50)), 100)
+        firestore_users = [{'id': doc.id, **doc.to_dict()} for doc in db.collection('users').limit(limit).stream()]
         
         if firestore_users:
             return jsonify({'users': firestore_users}), 200
@@ -629,9 +620,8 @@ def admin_get_all_users():
                 'lastSignIn': user.user_metadata.last_sign_in_timestamp
             })
         
-        return jsonify({'users': users}), 200
+        return jsonify({'users': users[:limit]}), 200
     except Exception as e:
-        print(f"Error fetching users: {e}")
         return make_error_response('Failed to fetch users', 500)
 
 @app.route('/api/admin/users/<user_id>', methods=['GET'])
@@ -682,7 +672,6 @@ def admin_get_user(user_id):
         
         return jsonify({'user': user, 'orders': orders}), 200
     except Exception as e:
-        print(f"Error fetching user: {e}")
         return make_error_response('User not found', 404)
 
 @app.route('/api/admin/analytics', methods=['GET'])
@@ -760,7 +749,7 @@ def save_admin_fcm_token():
 
 def _get_admin_dashboard_stats():
     """Helper function to get admin dashboard statistics"""
-    orders = list(db.collection('orders').stream())
+    orders = list(db.collection('orders').limit(500).stream())
     total_orders = len(orders)
     total_revenue = sum(doc.to_dict().get('totalAmount', 0) for doc in orders)
     status_counts = {}
@@ -791,7 +780,7 @@ def admin_dashboard_stats():
 category_cache = {
     "data": [],
     "last_updated": None,
-    "ttl": 300 # Time to live in seconds (5 minutes)
+    "ttl": 3600 # 1 hour - categories rarely change
 }
 
 def get_cached_categories():
