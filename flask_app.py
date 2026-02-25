@@ -256,7 +256,7 @@ def submit_order():
 
         # Send notification to admin about new order
         try:
-            admins = db.collection('admins').stream()
+            admins = db.collection('admins').limit(5).stream()
             for admin in admins:
                 admin_data = admin.to_dict()
                 fcm_token = admin_data.get('fcmToken')
@@ -431,14 +431,17 @@ def create_user():
 def get_order_analytics():
     """Get order statistics"""
     try:
-        orders = list(db.collection('orders').where('userId', '==', request.user_id).stream())
-
-        total_orders = len(orders)
-        total_revenue = sum(doc.to_dict().get('totalAmount', 0) for doc in orders)
+        total_orders = 0
+        total_revenue = 0
         status_counts = {}
         
-        for doc in orders:
-            status = doc.to_dict().get('status', 'UNKNOWN')
+        orders_ref = db.collection('orders').where('userId', '==', request.user_id).stream()
+        
+        for doc in orders_ref:
+            total_orders += 1
+            data = doc.to_dict()
+            total_revenue += data.get('totalAmount', 0)
+            status = data.get('status', 'UNKNOWN')
             status_counts[status] = status_counts.get(status, 0) + 1
 
         return jsonify({
@@ -749,13 +752,17 @@ def save_admin_fcm_token():
 
 def _get_admin_dashboard_stats():
     """Helper function to get admin dashboard statistics"""
-    orders = list(db.collection('orders').limit(500).stream())
-    total_orders = len(orders)
-    total_revenue = sum(doc.to_dict().get('totalAmount', 0) for doc in orders)
+    total_orders = 0
+    total_revenue = 0
     status_counts = {}
     
-    for doc in orders:
-        status = doc.to_dict().get('status', 'UNKNOWN')
+    orders_ref = db.collection('orders').limit(500).stream()
+    
+    for doc in orders_ref:
+        total_orders += 1
+        data = doc.to_dict()
+        total_revenue += data.get('totalAmount', 0)
+        status = data.get('status', 'UNKNOWN')
         status_counts[status] = status_counts.get(status, 0) + 1
 
     return {
